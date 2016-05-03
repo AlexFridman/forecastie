@@ -21,6 +21,7 @@ import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.util.Pair;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
@@ -34,6 +35,7 @@ import android.view.View;
 import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -42,6 +44,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
@@ -86,6 +89,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private List<Weather> longTermTodayWeather;
     private List<Weather> longTermTomorrowWeather;
     private String recentCity = "";
+
+    private double[][] probMatrix;
 
     private static void close(Closeable x) {
         try {
@@ -148,6 +153,17 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         // Set autoupdater
         AlarmReceiver.setRecurringAlarm(this);
+
+        // Load prob matrix
+        try {
+            this.probMatrix = loadProbMatrix();
+        } catch (IOException e) {
+            Toast.makeText(this, "Failed to load prob matrix", Toast.LENGTH_SHORT).show();
+            Log.wtf("BSUIR", e);
+        } finally {
+            if (this.probMatrix != null)
+                Toast.makeText(this, "Matrix was loaded successfully", Toast.LENGTH_SHORT).show();
+        }
     }
 
     public WeatherRecyclerAdapter getAdapter(int id) {
@@ -239,10 +255,47 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
     }
 
-    private double score(String result) {
-        result = transliterate(result);
-        // TODO implement
-        return 0.D;
+    private double[][] loadProbMatrix() throws IOException {
+        final InputStream open = this.getAssets().open("probs");
+        final byte[] array = new byte[open.available()];
+        open.read(array);
+        open.close();
+        final String[] rows = new String(array, "UTF-8").split("\n");
+
+        double[][] probMatrix = new double[rows.length][];
+        for (int i = 0; i < rows.length; i++) {
+            String[] strValues = rows[i].split(" ");
+            double[] row = new double[strValues.length];
+            for (int j = 0; j < row.length; j++) {
+                row[j] = Double.parseDouble(strValues[j]);
+            }
+            probMatrix[i] = row;
+        }
+        return probMatrix;
+    }
+
+    private ArrayList<Pair<Character, Character>> getPairs(String word) {
+        ArrayList<Pair<Character, Character>> result = new ArrayList<>();
+        for (int i = 0; i < word.length() - 1; i++) {
+            result.add(new Pair<>(word.charAt(i), word.charAt(i + 1)));
+        }
+        return result;
+    }
+
+    private double score(String input) {
+        String index = "_abcdefghijklmnopqrstuvwxyzрсьюђѓїќ";
+
+        input = transliterate(input);
+        input = input.replaceAll("[^" + index + "]", "");
+
+        double sum = 0.D;
+        for (Pair p : getPairs(input)) {
+            sum += this.probMatrix[index.indexOf((Integer) p.first)][index.indexOf((Integer) p.second)];
+        }
+
+        double score = sum / (input.length() - 1);
+        Toast.makeText(this, "Score=" + score, Toast.LENGTH_SHORT).show();
+        return score;
     }
 
     private void saveLocation(String result) {
@@ -259,18 +312,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private static List<Character> abcCyr = Arrays.asList(new Character[]
             {'а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я', 'ґ', 'і', 'ї', 'є', 'ў'});
-    private static String[] abcLat = {"a","b","v","g","d","e","zh","z","i","y","k","l","m","n","o","p","r","s","t","u","f","h","ts","ch","sh","sch", "","i", "","e","yu","ya","g","i","yi","e","u"};
-    public static String transliterate(String message){
+    private static String[] abcLat = {"a", "b", "v", "g", "d", "e", "zh", "z", "i", "y", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "h", "ts", "ch", "sh", "sch", "", "i", "", "e", "yu", "ya", "g", "i", "yi", "e", "u"};
+
+    public static String transliterate(String message) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < message.length(); i++)
             builder.append(getLatinSymbol(message.charAt(i)));
         return builder.toString();
     }
+
     private static String getLatinSymbol(char sym) {
         boolean l = Character.isLowerCase(sym);
         int position = abcCyr.indexOf(Character.toLowerCase(sym));
         return position != -1 ? abcLat[position] : String.valueOf(sym);
     }
+
     public static boolean isCyrillicSymbol(char sym) {
         return abcCyr.indexOf(Character.toLowerCase(sym)) != -1;
     }
@@ -434,23 +490,19 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         double rain = Double.parseDouble(todayWeather.getRain());
         String rainString = "";
-        if(rain > 0)
-        {
+        if (rain > 0) {
             if (sp.getString("lengthUnit", "mm").equals("mm")) {
-                if(rain < 0.1) {
+                if (rain < 0.1) {
                     rainString = " (<0.1 mm)";
+                } else {
+                    rainString = String.format(Locale.ENGLISH, " (%.1f %s)", rain, sp.getString("lengthUnit", "mm"));
                 }
-                else {
-                    rainString = String.format(Locale.ENGLISH," (%.1f %s)", rain, sp.getString("lengthUnit", "mm"));
-                }
-            }
-            else {
-                rain = rain/25.4;
-                if(rain < 0.01) {
+            } else {
+                rain = rain / 25.4;
+                if (rain < 0.01) {
                     rainString = " (<0.01 in)";
-                }
-                else {
-                    rainString = String.format(Locale.ENGLISH," (%.2f %s)", rain, sp.getString("lengthUnit", "mm"));
+                } else {
+                    rainString = String.format(Locale.ENGLISH, " (%.2f %s)", rain, sp.getString("lengthUnit", "mm"));
                 }
             }
 
@@ -482,7 +534,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         todayTemperature.setText(temperature + " °" + sp.getString("unit", "C"));
         todayDescription.setText(todayWeather.getDescription().substring(0, 1).toUpperCase() +
-                    todayWeather.getDescription().substring(1) + rainString);
+                todayWeather.getDescription().substring(1) + rainString);
         todayWind.setText(getString(R.string.wind) + ": " + (wind + "").substring(0, (wind + "").indexOf(".") + 2) + " " +
                 localize(sp, "speedUnit", "m/s") +
                 (todayWeather.isWindDirectionAvailable() ? " " + getWindDirectionString(sp, this, todayWeather) : ""));
@@ -621,11 +673,10 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         int id = item.getItemId();
 
         if (id == R.id.action_refresh) {
-            if(isNetworkAvailable()) {
+            if (isNetworkAvailable()) {
                 getTodayWeather();
                 getLongTermWeather();
-            }
-            else {
+            } else {
                 Snackbar.make(appView, getString(R.string.msg_connection_not_available), Snackbar.LENGTH_LONG).show();
             }
             return true;
@@ -692,9 +743,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     public static String getWindDirectionString(SharedPreferences sp, Context context, Weather weather) {
         String pref = sp.getString("windDirectionFormat", null);
-        if("arrow".equals(pref)) {
+        if ("arrow".equals(pref)) {
             return weather.getWindDirection(8).getArrow(context);
-        } else if("abbr".equals(pref)) {
+        } else if ("abbr".equals(pref)) {
             return weather.getWindDirection().getLocalizedString(context);
         }
 
@@ -789,7 +840,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         @Override
         protected void onPreExecute() {
             incLoadingCounter();
-            if(!progressDialog.isShowing()) {
+            if (!progressDialog.isShowing()) {
                 progressDialog.setMessage(getString(R.string.downloading_data));
                 progressDialog.setCanceledOnTouchOutside(false);
                 progressDialog.show();
@@ -834,13 +885,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
                         // Background work finished successfully
                         Log.i("Task", "done successfully");
                         output.taskResult = TaskResult.SUCCESS;
-                    }
-                    else if (urlConnection.getResponseCode() == 429) {
+                    } else if (urlConnection.getResponseCode() == 429) {
                         // Too many requests
                         Log.i("Task", "too many requests");
                         output.taskResult = TaskResult.TOO_MANY_REQUESTS;
-                    }
-                    else {
+                    } else {
                         // Bad response from server
                         Log.i("Task", "bad response");
                         output.taskResult = TaskResult.BAD_RESPONSE;
@@ -868,7 +917,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         @Override
         protected void onPostExecute(TaskOutput output) {
-            if(loading == 1) {
+            if (loading == 1) {
                 progressDialog.dismiss();
             }
             decLoadingCounter();
@@ -931,9 +980,11 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             return new URL(urlBuilder.toString());
         }
 
-        protected void updateMainUI() { }
+        protected void updateMainUI() {
+        }
 
         protected abstract ParseResult parseResponse(String response);
+
         protected abstract String getAPIName();
     }
 
@@ -1037,5 +1088,5 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private enum ParseResult {OK, JSON_EXCEPTION, CITY_NOT_FOUND}
 
-    private enum TaskResult { SUCCESS, BAD_RESPONSE, IO_EXCEPTION, TOO_MANY_REQUESTS; }
+    private enum TaskResult {SUCCESS, BAD_RESPONSE, IO_EXCEPTION, TOO_MANY_REQUESTS;}
 }
