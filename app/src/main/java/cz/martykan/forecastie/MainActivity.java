@@ -840,11 +840,16 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         @Override
         protected void onPreExecute() {
             incLoadingCounter();
-            if (!progressDialog.isShowing()) {
-                progressDialog.setMessage(getString(R.string.downloading_data));
-                progressDialog.setCanceledOnTouchOutside(false);
-                progressDialog.show();
-            }
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!progressDialog.isShowing()) {
+                        progressDialog.setMessage(getString(R.string.downloading_data));
+                        progressDialog.setCanceledOnTouchOutside(false);
+                        progressDialog.show();
+                    }
+                }
+            });
         }
 
         @Override
