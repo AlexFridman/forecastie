@@ -51,12 +51,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.text.DateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity implements LocationListener {
     private static final int MY_PERMISSIONS_ACCESS_FINE_LOCATION = 1;
@@ -223,7 +218,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             public void onClick(DialogInterface dialog, int whichButton) {
                 String result = input.getText().toString();
                 if (!result.isEmpty()) {
-                    saveLocation(result);
+                    checkAndSaveLocation(result);
                 }
             }
         });
@@ -233,6 +228,21 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             }
         });
         alert.show();
+    }
+
+    private void checkAndSaveLocation(String result) {
+        double score = score(result);
+        if (score > -9 && score < -5.5) {
+            getCityByLocation();
+        } else {
+            saveLocation(result);
+        }
+    }
+
+    private double score(String result) {
+        result = transliterate(result);
+        // TODO implement
+        return 0.D;
     }
 
     private void saveLocation(String result) {
@@ -245,6 +255,24 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         getTodayWeather();
         getLongTermWeather();
+    }
+
+    private static List<Character> abcCyr = Arrays.asList(new Character[]
+            {'а', 'б', 'в', 'г', 'д', 'е', 'ж', 'з', 'и', 'й', 'к', 'л', 'м', 'н', 'о', 'п', 'р', 'с', 'т', 'у', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ъ', 'ы', 'ь', 'э', 'ю', 'я', 'ґ', 'і', 'ї', 'є', 'ў'});
+    private static String[] abcLat = {"a","b","v","g","d","e","zh","z","i","y","k","l","m","n","o","p","r","s","t","u","f","h","ts","ch","sh","sch", "","i", "","e","yu","ya","g","i","yi","e","u"};
+    public static String transliterate(String message){
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < message.length(); i++)
+            builder.append(getLatinSymbol(message.charAt(i)));
+        return builder.toString();
+    }
+    private static String getLatinSymbol(char sym) {
+        boolean l = Character.isLowerCase(sym);
+        int position = abcCyr.indexOf(Character.toLowerCase(sym));
+        return position != -1 ? abcLat[position] : String.valueOf(sym);
+    }
+    public static boolean isCyrillicSymbol(char sym) {
+        return abcCyr.indexOf(Character.toLowerCase(sym)) != -1;
     }
 
     private void aboutDialog() {
@@ -673,7 +701,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         return "";
     }
 
-    void getCityByLocation() {
+    void getCityByLocationGPS() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
                     Manifest.permission.READ_CONTACTS)) {
@@ -691,6 +719,24 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             progressDialog.show();
             LocationManager locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
+        }
+    }
+
+    void getCityByLocation() {
+        LocationManager mLocationManager = (LocationManager) this.getSystemService(LOCATION_SERVICE);
+        Location location = null;
+        if (mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+            location = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        }
+        if (location == null && mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            location = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        }
+        if (location != null) {
+            double latitude = location.getLatitude();
+            double longitude = location.getLongitude();
+            new ProvideCityNameTask().execute("coords", Double.toString(latitude), Double.toString(longitude));
+        } else {
+            getCityByLocationGPS();
         }
     }
 
