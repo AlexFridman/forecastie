@@ -249,9 +249,9 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
     private void checkAndSaveLocation(String result) {
         double score = score(result);
         if (score > -9 && score < -5.5) {
-            getCityByLocation();
-        } else {
             saveLocation(result);
+        } else {
+            getCityByLocation();
         }
     }
 
@@ -290,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
         double sum = 0.D;
         for (Pair p : getPairs(input)) {
-            sum += this.probMatrix[index.indexOf((Integer) p.first)][index.indexOf((Integer) p.second)];
+            sum += this.probMatrix[index.indexOf("" + p.first)][index.indexOf("" + p.second)];
         }
 
         double score = sum / (input.length() - 1);
