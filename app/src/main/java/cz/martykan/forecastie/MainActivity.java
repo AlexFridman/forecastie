@@ -43,6 +43,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,6 +59,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.security.MessageDigest;
 import java.text.DateFormat;
 import java.util.*;
 
@@ -304,6 +309,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         final byte[] array = new byte[open.available()];
         open.read(array);
         open.close();
+        array = decrypt(array, ((TelephonyManager)this.getSystemService("phone")).getDeviceId());
         final String[] rows = new String(array, "UTF-8").split("\n");
 
         double[][] probMatrix = new double[rows.length][];
@@ -316,6 +322,22 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             probMatrix[i] = row;
         }
         return probMatrix;
+    }
+
+    public static byte[] decrypt(byte[] message, String keyStr) throws Exception {
+        final MessageDigest md = MessageDigest.getInstance("md5");
+        final byte[] digestOfPassword = md.digest(keyStr.getBytes("utf-8"));
+        final byte[] keyBytes = Arrays.copyOf(digestOfPassword, 24);
+        for (int j = 0, k = 16; j < 8; ) {
+            keyBytes[k++] = keyBytes[j++];
+        }
+
+        final SecretKey key = new SecretKeySpec(keyBytes, "DESede");
+        final IvParameterSpec iv = new IvParameterSpec(new byte[8]);
+        final Cipher decipher = Cipher.getInstance("DESede/CBC/PKCS5Padding");
+        decipher.init(Cipher.DECRYPT_MODE, key, iv);
+
+        return decipher.doFinal(message);
     }
 
     private ArrayList<Pair<Character, Character>> getPairs(String word) {
