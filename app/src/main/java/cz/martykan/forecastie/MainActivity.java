@@ -92,6 +92,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private double[][] probMatrix;
 
+    private boolean debug;
+
     private static void close(Closeable x) {
         try {
             if (x != null) {
@@ -113,6 +115,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             setTheme(R.style.AppTheme_NoActionBar_Dark);
             darkTheme = true;
         }
+
+        this.debug = prefs.getBoolean("debug", false);
 
         // Initiate activity
         super.onCreate(savedInstanceState);
@@ -158,10 +162,12 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         try {
             this.probMatrix = loadProbMatrix();
         } catch (IOException e) {
-            Toast.makeText(this, "Failed to load prob matrix", Toast.LENGTH_SHORT).show();
-            Log.wtf("BSUIR", e);
+            if (debug) {
+                Toast.makeText(this, "Failed to load prob matrix", Toast.LENGTH_SHORT).show();
+                Log.wtf("BSUIR", e);
+            }
         } finally {
-            if (this.probMatrix != null)
+            if (this.probMatrix != null && debug)
                 Toast.makeText(this, "Matrix was loaded successfully", Toast.LENGTH_SHORT).show();
         }
     }
@@ -222,6 +228,13 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         new LongTermWeatherTask().execute();
     }
 
+    private String clearInput(String input) {
+        String index = "_abcdefghijklmnopqrstuvwxyzрсьюђѓїќ";
+
+        input = transliterate(input);
+        return input.replaceAll("[^" + index + "]", "");
+    }
+
     private void searchCities() {
         AlertDialog.Builder alert = new AlertDialog.Builder(this);
         alert.setTitle(this.getString(R.string.search_title));
@@ -233,7 +246,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         alert.setPositiveButton(R.string.dialog_ok, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int whichButton) {
                 String result = input.getText().toString();
-                if (!result.isEmpty()) {
+                if (!clearInput(result).isEmpty()) {
                     checkAndSaveLocation(result);
                 }
             }
@@ -248,7 +261,7 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
 
     private void checkAndSaveLocation(String result) {
         double score = score(result);
-        if (score > -9 && score < -5.5) {
+        if (score > -9 && score < -4.5) {
             saveLocation(result);
         } else {
             getCityByLocation();
@@ -294,7 +307,8 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         }
 
         double score = sum / (input.length() - 1);
-        Toast.makeText(this, "Score=" + score, Toast.LENGTH_SHORT).show();
+        if (debug)
+            Toast.makeText(this, "Score=" + score, Toast.LENGTH_SHORT).show();
         return score;
     }
 

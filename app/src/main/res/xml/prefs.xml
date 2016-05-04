@@ -71,5 +71,10 @@
             android:title="@string/setting_apiKey"
             android:summary="@string/setting_apiKey_summary"/>
 
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="debug"
+            android:title="Debug" />
+
     </PreferenceCategory>
 </PreferenceScreen>
