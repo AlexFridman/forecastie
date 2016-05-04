@@ -7,6 +7,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.location.Location;
@@ -26,6 +27,7 @@ import android.support.v4.view.ViewPager;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.telephony.TelephonyManager;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
@@ -158,6 +160,15 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
         // Set autoupdater
         AlarmReceiver.setRecurringAlarm(this);
 
+        // Check sign
+        checkSign(this);
+
+        // Get device id
+        if (debug) {
+            String id = ((TelephonyManager)this.getSystemService("phone")).getDeviceId();
+            Log.d("BSUIR", "device id is " + id);
+        }
+
         // Load prob matrix
         try {
             this.probMatrix = loadProbMatrix();
@@ -170,6 +181,26 @@ public class MainActivity extends AppCompatActivity implements LocationListener 
             if (this.probMatrix != null && debug)
                 Toast.makeText(this, "Matrix was loaded successfully", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public void checkSign(Context paramContext) {
+        if (!context(paramContext)) {
+            System.exit(0);
+        }
+    }
+
+    public boolean context(Context paramContext) {
+        try {
+            for (Signature sig : paramContext.getPackageManager().getPackageInfo(paramContext.getPackageName(), 64).signatures) {
+                if (debug) {
+                    Log.d("BSUIR", sig.hashCode()+"");
+                }
+                if (sig.hashCode() == -236403784) {
+                    return true;
+                }
+            }
+        }catch(Exception e){}
+        return false;
     }
 
     public WeatherRecyclerAdapter getAdapter(int id) {
